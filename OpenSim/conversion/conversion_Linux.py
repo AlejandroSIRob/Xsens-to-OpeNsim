@@ -13,19 +13,29 @@ sensor_mapping = {
     '10B4151A': 'torso_imu',             # TREN SUPERIOR DERECHO
 
     # TREN SUPERIOR DERECHO
-    '10B4151C': 'humerus_r_imu',    # "Espalda derecha" (Brazo superior derecho)
+    '10B4151C': 'humerus_r_imu',    # "Bíceps" (Brazo superior derecho)
     '10B4215D': 'radius_r_imu',     # "Muñeca derecha" (Antebrazo derecho)
 
     # TREN SUPERIOR IZQUIERDO
-    '10B414FE': 'humerus_l_imu',    # "Espalda izquierda" (Brazo superior izquierdo) - [VERIFICAR ID]
+    '10B414FE': 'humerus_l_imu',    # "Bíceps (Brazo superior izquierdo) 
     '10B414FF': 'radius_l_imu',     # "Muñeca izquierda" (Antebrazo izquierdo)
 
     # CABEZA
-    '10B41515': 'cranial_imu'       # Cabeza - [VERIFICAR ID]
+    '10B41515': 'cranial_imu',       # Cabeza 
+
+    # --- NUEVO: MANOS (Usando los sensores de Torso y Cabeza) ---
+    # IMPORTANTE: Verifica qué ID tienes en qué mano. 
+    # Si al visualizar se cruzan los brazos, intercambia estos dos nombres.
+    #'10B4151A': 'hand_r_imu',       # Mano Derecha (Antes Torso)
+    #'10B41515': 'hand_l_imu',       # Mano Izquierda (Antes Cabeza)
     }
 
 # Nombre del archivo de salida
-output_filename = 'xsens_converted_data.sto'
+# 1. Define la carpeta donde están los TXT y donde se guardará el STO
+carpeta = r"C:\Users\alexs\Desktop\Pruebas-Xsen\Sin-Manos"
+
+# 2. Define el nombre completo del archivo de salida (Ruta + Nombre)
+output_filename = os.path.join(carpeta, 'xsens_converted_data.sto')
 
 # Frecuencia de muestreo (Ajustar si es diferente, ej: 60Hz, 100Hz)
 TARGET_FREQ = 60.0 
@@ -34,9 +44,6 @@ TARGET_FREQ = 60.0
 # 2. FUNCIÓN DE PROCESAMIENTO
 # ---------------------------------------------------------
 def process_xsens_files():
-    # Defines la carpeta correcta para tu entorno Linux
-    carpeta = "/home/ubuntu/Desktop/OpenSim/conversion/CALIBRADO_MOV"
-
     # Unes la carpeta con el nombre del archivo
     patron = os.path.join(carpeta, "MT_*.txt")
 

@@ -13,15 +13,21 @@ sensor_mapping = {
     '10B4151A': 'torso_imu',             # TREN SUPERIOR DERECHO
 
     # TREN SUPERIOR DERECHO
-    '10B4151C': 'humerus_r_imu',    # "Espalda derecha" (Brazo superior derecho)
+    '10B4151C': 'humerus_r_imu',    # "Bíceps" (Brazo superior derecho)
     '10B4215D': 'radius_r_imu',     # "Muñeca derecha" (Antebrazo derecho)
 
     # TREN SUPERIOR IZQUIERDO
-    '10B414FE': 'humerus_l_imu',    # "Espalda izquierda" (Brazo superior izquierdo) - [VERIFICAR ID]
+    '10B414FE': 'humerus_l_imu',    # "Bíceps" (Brazo superior izquierdo) 
     '10B414FF': 'radius_l_imu',     # "Muñeca izquierda" (Antebrazo izquierdo)
 
     # CABEZA
-    '10B41515': 'cranial_imu'       # Cabeza - [VERIFICAR ID]
+    '10B41515': 'cranial_imu',       # Cabeza 
+
+    # --- NUEVO: MANOS (Usando los sensores de Torso y Cabeza) ---
+    # IMPORTANTE: Verifica qué ID tienes en qué mano. 
+    # Si al visualizar se cruzan los brazos, intercambia estos dos nombres.
+    #'10B4151A': 'hand_r_imu',       # Mano Derecha (Antes Torso)
+    #'10B41515': 'hand_l_imu',       # Mano Izquierda (Antes Cabeza)
     }
 
 # Nombre del archivo de salida
@@ -34,8 +40,10 @@ TARGET_FREQ = 60.0
 # 2. FUNCIÓN DE PROCESAMIENTO
 # ---------------------------------------------------------
 def process_xsens_files():
-    # Defines la carpeta correcta para tu entorno Linux
-    carpeta = "/home/ubuntu/Desktop/OpenSim/conversion/CALIBRADO_MOV"
+    # Buscar todos los archivos .txt en la carpeta actual
+    #files = glob.glob("MT_*.txt")
+    # Defines la carpeta (nota la 'r' antes de las comillas para rutas de Windows)
+    carpeta = r"C:\Users\alexs\Desktop\Pruebas-Xsen\Sin-Manos"
 
     # Unes la carpeta con el nombre del archivo
     patron = os.path.join(carpeta, "MT_*.txt")
@@ -44,11 +52,11 @@ def process_xsens_files():
     files = glob.glob(patron)
     
     if not files:
-        print(f"No se encontraron archivos MT_*.txt en el directorio: {carpeta}")
+        print("No se encontraron archivos MT_*.txt en el directorio.")
         return
 
     merged_data = pd.DataFrame()
-    print(f"Encontrados {len(files)} archivos en {carpeta}. Procesando...")
+    print(f"Encontrados {len(files)} archivos. Procesando...")
 
     for filepath in files:
         # Extraer ID del nombre del archivo
@@ -80,6 +88,7 @@ def process_xsens_files():
         
         # --- LÓGICA DE TIEMPO ---
         # Usar PacketCounter para crear un tiempo relativo constante
+        # (Esto evita problemas si SampleTimeFine se reinicia o es confuso)
         df['time'] = (df['PacketCounter'] - df['PacketCounter'].iloc[0]) / TARGET_FREQ
         df = df.set_index('time')
         
@@ -89,6 +98,8 @@ def process_xsens_files():
         # CASO A: El archivo YA tiene Cuaterniones (Quat_q0, etc.)
         if 'Quat_q0' in df.columns:
             # Orden Xsens: q0(w), q1(x), q2(y), q3(z)
+            # OpenSim suele esperar w,x,y,z o x,y,z,w. 
+            # El formato estándar .sto de OpenSim 4.x usa w,x,y,z
             quats = df[['Quat_q0', 'Quat_q1', 'Quat_q2', 'Quat_q3']].values
             
         # CASO B: El archivo solo tiene Euler (Roll, Pitch, Yaw)
@@ -105,7 +116,17 @@ def process_xsens_files():
             print(f"ERROR: El archivo {filename} no tiene columnas de orientación reconocibles.")
             continue
 
-        # Formato 'Quaternion' de archivo .sto: "w,x,y,z" en una sola celda como string
+        # Crear columnas formateadas para el .sto (separadas por coma o tab, depende del parser)
+        # OpenSense prefiere columnas individuales o una columna con "w,x,y,z" string?
+        # El formato más robusto para OpenSense moderno es:
+        # Columna única por sensor con valor "q1,q2,q3,q4" (CSV style inside tab)
+        # O 4 columnas separadas. Vamos a usar 4 columnas planas que es más universal.
+        
+        # Sin embargo, OpenSense nativo a veces parsea mejor "w,x,y,z" como string.
+        # Vamos a usar el formato de 4 columnas sufijadas (esto funciona con IMU Placer si se configura bien)
+        # O MEJOR: El formato 'Table' de OpenSim espera quaterniones.
+        # Vamos a escribir "w,x,y,z" en una sola celda como string, es el formato 'Quaternion' de archivo .sto
+        
         quat_strings = []
         for q in quats:
             # q es [w, x, y, z]
@@ -141,7 +162,7 @@ def process_xsens_files():
                 line = f"{t:.4f}\t" + "\t".join(row.values) + "\n"
                 f.write(line)
                 
-        print(f"\n¡ÉXITO! Archivo guardado como: {os.path.abspath(output_filename)}")
+        print(f"\n¡ÉXITO! Archivo guardado como: {output_filename}")
         print("Copia este archivo en tu carpeta de OpenSim/OpenSense.")
     else:
         print("No se pudieron procesar datos.")
