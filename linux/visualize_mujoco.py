@@ -24,7 +24,6 @@ def find_mujoco_model(output_dir, config=None):
     """
     Busca el modelo de MuJoCo en el directorio de salida.
     Si config tiene 'mujoco_output_folder', busca primero allí.
-    Maneja rutas absolutas y relativas.
     """
     search_paths = []
     
@@ -35,12 +34,10 @@ def find_mujoco_model(output_dir, config=None):
         # Si es ruta absoluta, usarla directamente
         if os.path.isabs(mujoco_path):
             search_paths.append(os.path.join(mujoco_path, "*.xml"))
-            print(f"  Buscando en (ruta absoluta): {mujoco_path}")
         else:
             # Si es relativa, combinar con directorio de trabajo
             mujoco_dir = os.path.join(os.getcwd(), mujoco_path)
             search_paths.append(os.path.join(mujoco_dir, "*.xml"))
-            print(f"  Buscando en (ruta relativa): {mujoco_dir}")
     
     # Añadir rutas por defecto
     search_paths.extend([
@@ -103,28 +100,12 @@ def visualize_mujoco_trajectory(config_path, mjcf_path=None, data_path=None,
     output_dir = os.path.join(os.getcwd(), paths['output_folder'])
     
     print(f"\n--- Visualizando trayectoria en MuJoCo ---")
-    print(f"Directorio de salida OpenSim: {output_dir}")
-    if 'mujoco_output_folder' in paths:
-        mujoco_path = paths['mujoco_output_folder']
-        if os.path.isabs(mujoco_path):
-            print(f"Carpeta MuJoCo configurada (absoluta): {mujoco_path}")
-        else:
-            print(f"Carpeta MuJoCo configurada (relativa): {mujoco_path}")
     
     # Determinar rutas de archivos
     if mjcf_path is None:
         mjcf_path = find_mujoco_model(output_dir, config)
         if mjcf_path is None:
             print("ERROR: No se encontró el modelo de MuJoCo.")
-            print("Rutas buscadas:")
-            if 'mujoco_output_folder' in paths:
-                mujoco_path = paths['mujoco_output_folder']
-                if os.path.isabs(mujoco_path):
-                    print(f"  - {os.path.join(mujoco_path, '*.xml')} (configurada)")
-                else:
-                    print(f"  - {os.path.join(os.getcwd(), mujoco_path, '*.xml')} (configurada)")
-            print(f"  - {os.path.join(output_dir, 'mujoco_model', '*.xml')}")
-            print(f"  - {os.path.join(output_dir, '*.xml')}")
             return False
     
     if data_path is None:
@@ -133,9 +114,8 @@ def visualize_mujoco_trajectory(config_path, mjcf_path=None, data_path=None,
             print("ERROR: No se encontró el archivo de movimiento (.mot).")
             return False
     
-    print(f"\nModelo MJCF: {mjcf_path}")
+    print(f"Modelo MJCF: {mjcf_path}")
     print(f"Datos: {data_path}")
-    print(f"Frecuencia de muestreo (config): {sampling_rate} Hz")
     print(f"Factor de velocidad: {speed_factor}")
     
     # Verificar que los archivos existen
@@ -154,7 +134,7 @@ def visualize_mujoco_trajectory(config_path, mjcf_path=None, data_path=None,
         
         # Cargar datos de trayectoria
         df = pd.read_csv(data_path, sep='\t', skiprows=6)
-        print(f"Archivo de datos cargado: {len(df)} frames, {len(df.columns)} columnas")
+        print(f"Archivo de datos cargado: {len(df)} frames")
         
         # Crear mapeo automático de joints
         mapping = {}
@@ -166,26 +146,13 @@ def visualize_mujoco_trajectory(config_path, mjcf_path=None, data_path=None,
                 mapping[col_clean] = model.jnt_qposadr[joint_id]
                 joints_found.append(col_clean)
         
-        print(f"Joints encontrados en el modelo: {len(joints_found)}")
-        if len(joints_found) == 0:
-            print("ADVERTENCIA: No se encontraron joints en el modelo.")
-            print("Columnas disponibles en datos:", list(df.columns)[:10])
+        print(f"Joints encontrados: {len(joints_found)}")
         
         # Obtener el vector de tiempos
         if 'time' in df.columns:
             times = df['time'].values
         else:
             times = np.arange(len(df)) / sampling_rate
-            print(f"Nota: Usando frecuencia de muestreo de configuración: {sampling_rate} Hz")
-        
-        # Calcular la frecuencia real a partir de los datos
-        if len(times) > 1:
-            real_freq = 1.0 / np.mean(np.diff(times))
-            print(f"Frecuencia real calculada de datos: {real_freq:.2f} Hz")
-            frame_time = 1.0 / real_freq
-        else:
-            frame_time = 1.0 / sampling_rate
-            print(f"Usando frame_time = {frame_time*1000:.1f} ms (de configuración)")
         
         # Encontrar frame de inicio
         start_idx = 0
@@ -194,17 +161,14 @@ def visualize_mujoco_trajectory(config_path, mjcf_path=None, data_path=None,
                 start_idx = i
                 break
         
-        print(f"Iniciando en tiempo: {times[start_idx]:.2f}s (frame {start_idx})")
-        print("\nPresiona Ctrl+C para detener la visualización")
+        print(f"Iniciando en tiempo: {times[start_idx]:.2f}s")
+        print("\nPresiona Ctrl+C para detener")
         
-        # Loop de visualización
+        # Loop de visualización - VERSIÓN SIMPLE Y RÁPIDA
         with mujoco.viewer.launch_passive(model, data) as viewer:
             viewer.cam.distance = 4.0
             viewer.cam.azimuth = 90
             viewer.cam.elevation = -15
-            
-            frame_count = 0
-            last_time = time.time()
             
             for i in range(start_idx, len(df)):
                 row = df.iloc[i]
@@ -224,7 +188,7 @@ def visualize_mujoco_trajectory(config_path, mjcf_path=None, data_path=None,
                             # Translaciones - no convertir
                             pass
                         else:
-                            # Otras articulaciones (brazos, piernas) - convertir a radianes
+                            # Otras articulaciones - convertir a radianes
                             val = np.deg2rad(val)
                         
                         data.qpos[q_index] = val
@@ -233,16 +197,10 @@ def visualize_mujoco_trajectory(config_path, mjcf_path=None, data_path=None,
                 mujoco.mj_step(model, data)
                 viewer.sync()
                 
-                # Control de velocidad basado en la frecuencia real
-                frame_count += 1
-                if frame_count % 10 == 0:
-                    elapsed = time.time() - last_time
-                    target_time = (i - start_idx) * frame_time / speed_factor
-                    if elapsed < target_time:
-                        time.sleep(target_time - elapsed)
-                    last_time = time.time()
+                # Control de velocidad simple - 0.01s = ~100fps (original)
+                time.sleep(0.01 / speed_factor)
                 
-                # Mostrar progreso
+                # Mostrar progreso cada 100 frames
                 if i % 100 == 0:
                     current_time = times[i] if i < len(times) else i/sampling_rate
                     print(f"Tiempo: {current_time:.2f}s | Frame: {i}", end='\r')
@@ -251,35 +209,27 @@ def visualize_mujoco_trajectory(config_path, mjcf_path=None, data_path=None,
         return True
         
     except KeyboardInterrupt:
-        print("\nVisualización detenida por el usuario.")
+        print("\nDetenido por el usuario.")
         return True
     except Exception as e:
-        print(f"ERROR durante la visualización: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"ERROR: {e}")
         return False
 
 def main():
-    """Función principal del script."""
+    """Función principal."""
     config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
     
-    # Verificar que estamos en el directorio correcto
     if not os.path.exists(config_path):
-        print("ERROR: No se encuentra config.yaml")
-        print("Ejecuta este script desde la raíz del repositorio:")
-        print("  python linux/visualize_mujoco.py")
+        print("ERROR: Ejecuta desde la raíz: python linux/visualize_mujoco.py")
         sys.exit(1)
     
-    print("\n--- Visualizador de Trayectorias MuJoCo (Linux) ---")
-    
-    # Parámetros configurables
     import argparse
-    parser = argparse.ArgumentParser(description='Visualizar trayectorias en MuJoCo')
-    parser.add_argument('--mjcf', type=str, help='Ruta al modelo MJCF (opcional)')
-    parser.add_argument('--data', type=str, help='Ruta al archivo .mot (opcional)')
-    parser.add_argument('--speed', type=float, default=1.0, help='Factor de velocidad (defecto: 1.0)')
-    parser.add_argument('--start', type=float, default=0.0, help='Tiempo de inicio en segundos')
-    parser.add_argument('--offset', type=float, default=0, help='Offset de rotación de pelvis (grados)')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--mjcf', type=str, help='Ruta al modelo MJCF')
+    parser.add_argument('--data', type=str, help='Ruta al archivo .mot')
+    parser.add_argument('--speed', type=float, default=1.0, help='Factor velocidad')
+    parser.add_argument('--start', type=float, default=0.0, help='Tiempo inicio')
+    parser.add_argument('--offset', type=float, default=0, help='Offset pelvis (grados)')
     
     args = parser.parse_args()
     
@@ -293,7 +243,6 @@ def main():
     )
     
     if not success:
-        print("Visualización fallida.")
         sys.exit(1)
 
 if __name__ == "__main__":
