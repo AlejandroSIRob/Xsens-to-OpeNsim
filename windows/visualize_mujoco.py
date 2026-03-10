@@ -79,9 +79,12 @@ def visualize_mujoco_trajectory(config_path, mjcf_path=None, data_path=None,
         print("Instálalo con: pip install mujoco")
         return False
     
-    # Cargar configuración
+    # Cargar configuración para obtener la frecuencia de muestreo
     config = load_config(config_path)
     paths = config['paths']
+    settings = config['settings']
+    sampling_rate = settings['sampling_rate']  # 60.0 por defecto
+    
     output_dir = os.path.join(os.getcwd(), paths['output_folder'])
     
     # Determinar rutas de archivos
@@ -101,6 +104,7 @@ def visualize_mujoco_trajectory(config_path, mjcf_path=None, data_path=None,
     print(f"\n--- Visualizando trayectoria en MuJoCo ---")
     print(f"Modelo MJCF: {mjcf_path}")
     print(f"Datos: {data_path}")
+    print(f"Frecuencia de muestreo (config): {sampling_rate} Hz")
     print(f"Factor de velocidad: {speed_factor}")
     
     # Verificar que los archivos existen
@@ -113,7 +117,7 @@ def visualize_mujoco_trajectory(config_path, mjcf_path=None, data_path=None,
         return False
     
     try:
-        # Cargar modelo y datos de MuJoCo
+        # Cargar modelo de MuJoCo
         model = mujoco.MjModel.from_xml_path(mjcf_path)
         data = mujoco.MjData(model)
         
@@ -125,7 +129,6 @@ def visualize_mujoco_trajectory(config_path, mjcf_path=None, data_path=None,
         mapping = {}
         joints_found = []
         for col in df.columns:
-            # Intentar diferentes tipos de nombres
             col_clean = col.strip()
             joint_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, col_clean)
             if joint_id != -1:
@@ -137,13 +140,24 @@ def visualize_mujoco_trajectory(config_path, mjcf_path=None, data_path=None,
             print("ADVERTENCIA: No se encontraron joints en el modelo.")
             print("Columnas disponibles en datos:", list(df.columns)[:10])
         
-        # Encontrar frame de inicio
-        times = df.index if 'time' not in df.columns else df['time'].values
+        # Obtener el vector de tiempos
         if 'time' in df.columns:
             times = df['time'].values
         else:
-            times = np.arange(len(df)) / 60.0  # Asumir 60Hz si no hay tiempo
+            # Si no hay columna time, asumimos la frecuencia de muestreo
+            times = np.arange(len(df)) / sampling_rate
+            print(f"Nota: Usando frecuencia de muestreo de configuración: {sampling_rate} Hz")
         
+        # Calcular la frecuencia real a partir de los datos
+        if len(times) > 1:
+            real_freq = 1.0 / np.mean(np.diff(times))
+            print(f"Frecuencia real calculada de datos: {real_freq:.2f} Hz")
+            frame_time = 1.0 / real_freq
+        else:
+            frame_time = 1.0 / sampling_rate
+            print(f"Usando frame_time = {frame_time*1000:.1f} ms (de configuración)")
+        
+        # Encontrar frame de inicio
         start_idx = 0
         for i, t in enumerate(times):
             if t >= start_time:
@@ -193,18 +207,18 @@ def visualize_mujoco_trajectory(config_path, mjcf_path=None, data_path=None,
                 mujoco.mj_step(model, data)
                 viewer.sync()
                 
-                # Control de velocidad
+                # Control de velocidad basado en la frecuencia real
                 frame_count += 1
                 if frame_count % 10 == 0:
                     elapsed = time.time() - last_time
-                    target_time = (i - start_idx) * 0.01 / speed_factor  # 0.01s por frame base
+                    target_time = (i - start_idx) * frame_time / speed_factor
                     if elapsed < target_time:
                         time.sleep(target_time - elapsed)
                     last_time = time.time()
                 
                 # Mostrar progreso
                 if i % 100 == 0:
-                    current_time = times[i] if i < len(times) else i/60.0
+                    current_time = times[i] if i < len(times) else i/sampling_rate
                     print(f"Tiempo: {current_time:.2f}s | Frame: {i}", end='\r')
         
         print("\nVisualización completada.")
