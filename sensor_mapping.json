@@ -1,0 +1,9 @@
+{
+    "10B41517": "pelvis_imu",
+    "10B4151A": "torso_imu",
+    "10B4151C": "humerus_r_imu",
+    "10B4215D": "radius_r_imu",
+    "10B414FE": "acromial_r",
+    "10B41515": "hand_r_imu",
+    "10B414FF": "cranial_imu"
+}

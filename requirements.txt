@@ -1,0 +1,10 @@
+# Python Dependencies for Xsens-to-OpeNsim
+
+pandas
+numpy
+scipy
+pyyaml
+
+# Note for MuJoCo conversion:
+# The conversion to MuJoCo requires the myoconverter tool. You must install it from its repository:
+# pip install git+https://github.com/gabrinovas/myoconverter.git

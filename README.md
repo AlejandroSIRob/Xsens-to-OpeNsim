@@ -1,45 +1,75 @@
-﻿# Xsens to OpenSim: Pipeline de Procesamiento Biomecánico
+# Xsens-to-OpeNsim
 
+![Processed Results Simulation Video](/home/gabri/APERTA/APERTA-Repos/Docker_Repos/Xsens-to-OpeNsim/Procesado.mp4)
 
+This repository provides tools to convert kinematic data retrieved from Xsens IMU sensors into OpenSim trajectories (`.sto` files) and, optionally, MuJoCo simulation files (`.xml`). 
 
-Este repositorio contiene un flujo de trabajo completo (pipeline) automatizado con Python para transformar datos cinemáticos crudos obtenidos de sensores inerciales **Xsens Awinda**, convertirlos a formatos compatibles con **OpenSim**, calibrar un modelo musculoesquelético y resolver la Cinemática Inversa (Inverse Kinematics) para visualizar el movimiento en 3D.
+The repository has been restructured and modularized to provide a clear separation between common source code (`src/`) and operating system specifics (`linux/`, `windows/`).
 
+## Installation
 
-## ⚙️ Requisitos y Dependencias
+### 1. Requirements
 
-Para ejecutar los scripts de este repositorio, necesitas:
-* **Python 3.x**
-* **OpenSim API para Python** (Módulo `opensim`)
-* **Librerías de procesamiento numérico:** `pandas`, `numpy`, `scipy`.
+Ensure you have Python 3 installed and install the base data science dependencies:
 
-## 🚀 Flujo de Trabajo (Workflow)
+```bash
+pip install -r requirements.txt
+```
 
-El procesamiento se divide en dos fases automatizadas por dos scripts principales ubicados en `OpenSim/conversion/`.
+Additionally, interacting with OpenSim files requires the OpenSim API (`import opensim`). Review the [OpenSim documentation](https://simtk-confluence.stanford.edu/display/OpenSim/Scripting+in+Python) for installation instructions depending on your system.
 
-### 1. Conversión de Datos (`conversion.py` / `conversion_Linux.py`)
-Este script actúa como traductor entre el hardware físico (Xsens) y el software de simulación (OpenSim).
-* **Lectura de datos:** Lee múltiples archivos `.txt` generados por el MT Manager de Xsens. Detecta automáticamente el inicio de los datos omitiendo los encabezados mediante la búsqueda de la columna `PacketCounter`.
-* **Mapeo de Sensores:** Utiliza un diccionario interno para asociar el MAC/ID único de cada sensor Xsens con un "Virtual IMU" en el modelo de OpenSim (ej. `10B41517` -> `pelvis_imu`).
-* **Gestión del Tiempo:** Convierte los incrementos de los paquetes en una línea de tiempo continua basada en la frecuencia de muestreo (por defecto, 60 Hz).
-* **Conversión de Orientación:** Es capaz de ingerir cuaterniones directos (`Quat_q0`, etc.) o ángulos de Euler (`Roll`, `Pitch`, `Yaw`), transformando estos últimos a cuaterniones usando `scipy.spatial.transform` para asegurar la compatibilidad matemática.
-* **Alineación temporal:** Une los datos asíncronos de todos los sensores en un único DataFrame ordenado temporalmente usando `pd.merge_asof`, generando un archivo de salida estándar `xsens_converted_data.sto`.
+### 2. MuJoCo Conversion (Optional)
 
-### 2. Procesamiento Biomecánico (`procesado-completo.py`)
-Una vez generados los cuaterniones en el archivo `.sto`, este script utiliza la API de OpenSim para realizar la simulación biomecánica.
-* **Calibración (`IMUPlacer`):** Toma el modelo `Rajagopal_Unificado.osim` y calcula las rotaciones relativas (offsets) entre los sensores físicos (orientación IMU) y los huesos virtuales (orientación del cuerpo). Devuelve un nuevo modelo calibrado (`modelo_calibrado.osim`).
-* **Cinemática Inversa (`IMUInverseKinematicsTool`):** Resuelve los ángulos de las articulaciones fotograma a fotograma para que el modelo digital siga la orientación dictada por los sensores inerciales. Exporta los resultados a un archivo `.mot` (motion).
-* **Visualización en tiempo real:** Implementa una ventana interactiva usando `SimbodyVisualizer`. Para evitar la ralentización típica de la API visual de OpenSim, el código implementa un sistema inteligente de "salto de frames" (renderizando 1 de cada 4 fotogramas) manteniendo la reproducción fluida.
+If you intend to run the `convert_to_mujoco` pipeline step, you must install the custom `myoconverter` library built by the repository author:
 
-## 🔧 Personalización del Mapeo de Sensores
+```bash
+pip install git+https://github.com/gabrinovas/myoconverter.git
+```
 
-Si cambias la disposición física de los sensores en el sujeto (por ejemplo, mover el sensor del torso a las manos), debes editar el diccionario `sensor_mapping` dentro del archivo `conversion.py`.
+## Structure
 
-Asegúrate de que la clave (`'10B4XXXX'`) coincida con tu sensor físico, y el valor (`'nombre_imu'`) coincida exactamente con el sufijo `_imu` de los cuerpos (bodies) definidos en tu archivo `.osim`.
+*   `models/`: Contains the base `.osim` models ready for calibration.
+    *   `Rajagopal_WithMuscles.osim`
+    *   `Rajagopal2015_opensense.osim` (Skeleton only)
+    *   `Rajagopal_FreeArms_LockedLegs.osim`
+*   `src/`: Modularized, reusable Python functions dealing with Xsens parsing, OpenSim operations, Simbody visualization, and MuJoCo compilation.
+*   `linux/`: Configuration (`config.yaml`) and execution scripts specific to Linux environments.
+*   `windows/`: Configuration (`config.yaml`) and execution scripts specific to Windows environments. **Note:** Simbody visualization is unsupported on Windows here.
+*   `sensor_mapping.json`: Configuration mapping Xsens IMU IDs to OpenSim model bodies.
 
-## ▶️ Ejecución Básica
+## Usage
 
-1. Coloca tus archivos `.txt` exportados de Xsens en la carpeta configurada (ej. `OpenSim/conversion/Sin-Manos`).
-2. Actualiza la ruta `carpeta` dentro de `conversion.py`.
-3. Ejecuta la conversión:
-   ```bash
-   python conversion.py
+1. Open the `config.yaml` specific to your operating system (`linux/config.yaml` or `windows/config.yaml`).
+2. Update the `paths:` variables to point to your physical `MT_*.txt` IMU files and specify where to save the processed files. Update the `model_path:` to select which model from the `models/` directory you wish to calibrate.
+3. If necessary, adjust the `sensor_mapping.json` for your specific IMU setup.
+4. Run the core pipeline from the root directory of this repository:
+
+**Linux:**
+```bash
+python3 linux/run_pipeline.py
+```
+
+**Windows:**
+```cmd
+python windows\run_pipeline.py
+```
+
+### Visualizing Results (Linux Only)
+After generating `.sto` files from the pipeline, you can visually render the calibration using Simbody on Linux:
+
+```bash
+python3 linux/visualize_simbody.py
+```
+
+### Converting to MuJoCo
+Convert your OpenSim models to MuJoCo format (requires `myoconverter` dependency):
+
+**Linux:**
+```bash
+python3 linux/convert_to_mujoco.py
+```
+
+**Windows:**
+```cmd
+python windows\convert_to_mujoco.py
+```

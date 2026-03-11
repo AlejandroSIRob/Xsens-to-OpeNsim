@@ -1,0 +1,19 @@
+# Linux Configuration
+
+paths:
+  input_folder: "/home/drims/drims_ws/simulation_projects/Xsens_to_Opensim/data/MUESTRAS2-XSENS/V2/IMU"
+  output_folder: "/home/drims/drims_ws/simulation_projects/Xsens_to_Opensim/Resultados"
+  output_filename: "kinematics_v3.sto"
+  mapping_file: "sensor_mapping.json"
+  model_path: "models/Rajagopal_WithMuscles.osim"
+  geometry_path: "models/Geometry"
+  mujoco_output_folder: "/home/drims/mujoco_output_folder"
+
+settings:
+  sampling_rate: 60.0
+
+opensim_settings:
+  base_imu_label: "pelvis_imu"
+  base_heading_axis: "z"
+  sensor_to_opensim_rot: [-1.57079633, 0, 0] # -pi/2 on X axis
+  output_model_name: "calibrated_model.osim"
