@@ -339,9 +339,19 @@ def trim_ik_batch(
         
         # Determine output directory for this file
         if output_dir:
-            # Create subdirectory based on filename
-            nombre_base = os.path.splitext(os.path.basename(ruta_archivo))[0]
-            out_dir_archivo = os.path.join(output_dir, nombre_base)
+            # Extract relative path (date and version) from 'nombre' if available
+            rel_path = ""
+            if 'nombre' in item:
+                rel_path = os.path.dirname(item['nombre'])
+            elif carpeta_raiz and ruta_archivo.startswith(carpeta_raiz):
+                rel_path = os.path.dirname(os.path.relpath(ruta_archivo, carpeta_raiz))
+            
+            # Create subdirectory preserving date and version
+            if rel_path:
+                out_dir_archivo = os.path.join(output_dir, rel_path)
+            else:
+                nombre_base = os.path.splitext(os.path.basename(ruta_archivo))[0]
+                out_dir_archivo = os.path.join(output_dir, nombre_base)
         else:
             out_dir_archivo = None
         
@@ -533,13 +543,17 @@ Usage examples:
         """
     )
     
-    parser.add_argument('--config', '-c', type=str, help='JSON configuration file')
+    parser.add_argument('--config', '-c', type=str,
+                       default='/home/drims/simulation_projects/config_real.json',
+                       help='JSON configuration file (default: /home/drims/simulation_projects/config_real.json)')
     parser.add_argument('--archivo', '-a', type=str, help='Specific file to process')
     parser.add_argument('--segmentos', '-s', nargs='+', 
                        help='Segments in "start-end:name" format (e.g., "0.5-2.5:movement")')
     parser.add_argument('--generate-config', '-g', type=str, 
                        help='Generate configuration from folder')
-    parser.add_argument('--output-dir', '-o', type=str, help='Output directory')
+    parser.add_argument('--output-dir', '-o', type=str,
+                       default='/home/drims/data/dataset_processing/Inverse_Kinematics_Opensim/Segmented_Trajectory/IK_segmented_trajectory',
+                       help='Output directory (default: /home/drims/data/dataset_processing/Inverse_Kinematics_Opensim/Segmented_Trajectory/IK_segmented_trajectory)')
     parser.add_argument('--output-json', type=str, default='trim_config.json',
                        help='Output JSON file for --generate-config')
     parser.add_argument('--start', type=float, default=0.0,
@@ -574,14 +588,6 @@ Usage examples:
             end_time=args.end,
             pattern=args.pattern,
             output_json=args.output_json
-        )
-    
-    elif args.config:
-        # Process from JSON file
-        trim_ik_batch(
-            config_path=args.config,
-            output_dir=args.output_dir,
-            reset_time=reset_time
         )
     
     elif args.archivo and args.segmentos:
@@ -620,6 +626,17 @@ Usage examples:
         trim_ik_multiple_segments(
             input_path=args.archivo,
             segments=segments,
+            output_dir=args.output_dir,
+            reset_time=reset_time
+        )
+    
+    elif args.config:
+        # Process from JSON file
+        print(f"\nUsing JSON configuration file: {args.config}")
+        print(f"Using output directory: {args.output_dir}")
+        
+        trim_ik_batch(
+            config_path=args.config,
             output_dir=args.output_dir,
             reset_time=reset_time
         )
