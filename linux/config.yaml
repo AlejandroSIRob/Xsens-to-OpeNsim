@@ -1,13 +1,13 @@
 # Linux Configuration
 
 paths:
-  input_folder: "/home/drims/drims_ws/simulation_projects/IRL_Dataset/Sensors_Data/8-abr-2026/V1"
-  output_folder: "/home/drims/drims_ws/simulation_projects/IRL_Dataset/IK_and_Movements/8-abr-2026/V1"
+  input_folder: "/home/drims/data/sensors_data/4-may-2026/V1"
+  output_folder: "/home/drims/data/dataset_processing/Inverse_Kinematics_Opensim/Full_Trajectory/IK_full_trajectory/4-may-2026/V1"
   output_filename: "kinematics_v3.sto"
   mapping_file: "sensor_mapping.json"
   model_path: "models/Rajagopal_FreeArms_LockedLegs.osim"
   geometry_path: "models/Geometry"
-  mujoco_output_folder: "/home/drims/drims_ws/simulation_projects/IRL_Dataset/MuJoCo_Biomechanical_Model/8-abr-2026/V1"
+  mujoco_output_folder: "/home/drims/data/dataset_processing/MuJoCo_Biomechanical_Model/4-may-2026/V1"
 
 settings:
   sampling_rate: 100.0
