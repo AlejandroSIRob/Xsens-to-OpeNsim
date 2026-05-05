@@ -8,6 +8,8 @@ paths:
   model_path: "models\\Rajagopal_WithMuscles.osim"
   geometry_path: "models\\Geometry"
   mujoco_output_folder: "C:\\Users\\drims\\mujoco_output_folder"
+  trim_config_path: "C:\\Users\\drims\\simulation_projects\\config_real.json"
+  trim_output_folder: "C:\\Users\\drims\\data\\dataset_processing\\Inverse_Kinematics_Opensim\\Segmented_Trajectory\\IK_segmented_trajectory"
 
 settings:
   sampling_rate: 100.0

@@ -101,9 +101,10 @@ class WorkflowGUI:
         
         # IK Trimming variables
         self.trim_input_file = tk.StringVar(value="")
-        self.trim_output_dir = tk.StringVar(value="")
+        self.trim_output_dir = tk.StringVar(value=self.config['paths'].get('trim_output_folder', ''))
+        self.trim_config_path = tk.StringVar(value=self.config['paths'].get('trim_config_path', ''))
         self.trim_reset_time = tk.BooleanVar(value=True)
-        self.batch_process_mode = tk.BooleanVar(value=False)  # Batch Mode
+        self.batch_process_mode = tk.BooleanVar(value=True)  # Batch Mode
     
     def create_widgets(self):
         """Creates the user interface widgets"""
@@ -267,7 +268,7 @@ class WorkflowGUI:
         mode_frame = ttk.LabelFrame(parent, text="Operation Mode", padding=10)
         mode_frame.pack(fill='x', padx=10, pady=5)
         
-        self.batch_mode_var = tk.BooleanVar(value=False)
+        self.batch_mode_var = tk.BooleanVar(value=True)
         ttk.Radiobutton(mode_frame, text="Single Mode (load one file and configure its segments)", 
                        variable=self.batch_mode_var, value=False, 
                        command=self.toggle_trim_mode).pack(anchor='w')
@@ -293,10 +294,11 @@ class WorkflowGUI:
         self.json_info_frame.pack(fill='x', pady=5)
         self.json_info_frame.pack_forget()  # Hidden initially
         
-        ttk.Label(self.json_info_frame, text="Loaded JSON:").pack(side='left')
-        self.json_path_label = ttk.Label(self.json_info_frame, text="None", foreground='gray')
-        self.json_path_label.pack(side='left', padx=5)
-        ttk.Button(self.json_info_frame, text="Clear JSON", command=self.clear_loaded_json).pack(side='left', padx=5)
+        ttk.Label(self.json_info_frame, text="JSON Config File:").pack(side='left')
+        ttk.Entry(self.json_info_frame, textvariable=self.trim_config_path, width=50).pack(side='left', padx=5)
+        ttk.Button(self.json_info_frame, text="Browse", command=lambda: self.browse_file(
+            self.trim_config_path, [("JSON files", "*.json")])).pack(side='left', padx=2)
+        ttk.Button(self.json_info_frame, text="Load JSON", command=self.load_specific_trim_config).pack(side='left', padx=2)
         
         # Output directory
         output_frame = ttk.Frame(config_frame)
@@ -365,6 +367,9 @@ class WorkflowGUI:
         # Style for execute button
         style = ttk.Style()
         style.configure("Accent.TButton", foreground="green")
+        
+        # Initialize trim mode toggle
+        self.toggle_trim_mode()
     
     def toggle_trim_mode(self):
         """Toggles between single mode and batch mode"""
@@ -386,7 +391,7 @@ class WorkflowGUI:
         """Clears the loaded JSON configuration"""
         self.loaded_json_config = None
         self.loaded_json_path = None
-        self.json_path_label.config(text="None", foreground='gray')
+        self.trim_config_path.set("")
         self.clear_trim_segments()
         self.log("Loaded JSON configuration cleared.", 'info')
     
@@ -465,6 +470,8 @@ class WorkflowGUI:
             self.config['paths']['model_path'] = self.model_path.get()
             self.config['paths']['geometry_path'] = self.geometry_path.get()
             self.config['paths']['mujoco_output_folder'] = self.mujoco_output.get()
+            self.config['paths']['trim_config_path'] = self.trim_config_path.get()
+            self.config['paths']['trim_output_folder'] = self.trim_output_dir.get()
             
             self.config['settings']['sampling_rate'] = self.sampling_rate.get()
             
@@ -592,7 +599,8 @@ class WorkflowGUI:
                 from src import mujoco_converter
                 # Update config with MuJoCo path
                 config_dict['paths']['mujoco_output_folder'] = self.mujoco_output.get()
-                success = mujoco_converter.run_mujoco_conversion(self.config_path)
+                # Pass config_dict directly to avoid reading the shared file from disk again
+                success = mujoco_converter.run_mujoco_conversion(config_dict)
                 if success:
                     self.log("✓ MuJoCo Conversion completed", 'success')
                 else:
@@ -686,8 +694,15 @@ class WorkflowGUI:
         
         # Batch Mode
         if self.batch_mode_var.get():
+            config_path = self.trim_config_path.get()
+            
+            if not self.loaded_json_config and config_path and os.path.exists(config_path):
+                # Auto-load before running if not explicitly loaded
+                if not self.load_specific_trim_config():
+                    return
+            
             if not self.loaded_json_config:
-                messagebox.showerror("Error", "No JSON configuration loaded. Use 'Load JSON Configuration' first.")
+                messagebox.showerror("Error", "No JSON configuration loaded. Provide a valid path and click 'Load JSON'.")
                 return
             
             self.log("\n" + "="*60)
@@ -794,14 +809,12 @@ class WorkflowGUI:
             thread.daemon = True
             thread.start()
     
-    def load_trim_config(self):
-        """Loads trim configuration from JSON"""
-        filename = filedialog.askopenfilename(
-            title="Load Trimming Configuration",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
-        )
-        if not filename:
-            return
+    def load_specific_trim_config(self):
+        """Loads the trim configuration specified in the UI path"""
+        filename = self.trim_config_path.get()
+        if not filename or not os.path.exists(filename):
+            messagebox.showerror("Error", f"File not found: {filename}")
+            return False
         
         try:
             with open(filename, 'r', encoding='utf-8') as f:
@@ -809,7 +822,6 @@ class WorkflowGUI:
             
             self.loaded_json_config = config
             self.loaded_json_path = filename
-            self.json_path_label.config(text=os.path.basename(filename), foreground='green')
             
             # Show JSON Info
             archivos = config.get('archivos', [])
@@ -817,6 +829,27 @@ class WorkflowGUI:
             self.log(f"✓ Loaded JSON: {os.path.basename(filename)}", 'success')
             self.log(f"  Files: {len(archivos)}", 'info')
             self.log(f"  Total segments: {total_segmentos}", 'info')
+            
+            return True
+        except Exception as e:
+            self.log(f"Error loading JSON: {e}", 'error')
+            messagebox.showerror("Error", f"Could not load JSON:\n{e}")
+            return False
+
+    def load_trim_config(self):
+        """Loads trim configuration from JSON (button action)"""
+        filename = filedialog.askopenfilename(
+            title="Load Trimming Configuration",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+        )
+        if not filename:
+            return
+        
+        self.trim_config_path.set(filename)
+        
+        if self.load_specific_trim_config():
+            config = self.loaded_json_config
+            archivos = config.get('archivos', [])
             
             # If in single mode, prompt which file to load
             if not self.batch_mode_var.get():
@@ -890,10 +923,6 @@ class WorkflowGUI:
             
             self.status_var.set(f"JSON loaded: {os.path.basename(filename)}")
             
-        except Exception as e:
-            messagebox.showerror("Error", f"Could not load configuration:\n{e}")
-            self.log(f"Error loading configuration: {e}", 'error')
-    
     def save_trim_config(self):
         """Saves trim configuration to JSON"""
         # Determine what to save depending on mode

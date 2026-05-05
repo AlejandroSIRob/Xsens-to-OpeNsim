@@ -3,7 +3,9 @@ import shutil
 import yaml
 
 def load_config(config_path):
-    """Loads configuration from a YAML file."""
+    """Loads configuration from a YAML file or returns the dictionary directly."""
+    if isinstance(config_path, dict):
+        return config_path
     with open(config_path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
 
