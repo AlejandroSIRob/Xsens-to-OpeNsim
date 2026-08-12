@@ -1,6 +1,6 @@
 # Xsens-to-OpeNsim
 
-![Processed Results Simulation Video](/home/gabri/APERTA/APERTA-Repos/Docker_Repos/Xsens-to-OpeNsim/Procesado.mp4)
+![Processed Results Simulation Video](https://github.com/AlejandroSIRob/Xsens-to-OpenSim/raw/main/Procesado.mp4)
 
 This repository provides tools to convert kinematic data retrieved from Xsens IMU sensors into OpenSim trajectories (`.sto` files) and, optionally, MuJoCo simulation files (`.xml`). 
 
